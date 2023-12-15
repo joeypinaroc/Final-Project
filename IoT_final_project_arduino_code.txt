@@ -1,0 +1,199 @@
+#include <Servo.h>
+#include <LiquidCrystal.h> //initialize lcd display
+int RS = 8;
+int E = 9;
+int D4 = 10;
+int D5 = 11;
+int D6 = 12;
+int D7 = 13;
+LiquidCrystal lcd(RS, E, D4, D5, D6, D7);
+
+//declare time variables
+int minutes = 0;
+int seconds = 0;
+int productive_time = 25;
+int break_time = 5;
+
+//declare LED pins
+int rLED = 24;
+int gLED = 26;
+int bLED = 28;
+
+//declare buzzer pin
+int buzzer = 6;
+
+//initialize servo
+Servo MyServoMotor;
+int servoMotorPin = 2;
+
+//declare ultrasonic pins
+int trigPin = 38;
+int echoPin = 36;
+
+//declare joystick
+#define VRX_PIN A2
+#define VRY_PIN A3
+int xValue = 0;
+int yValue = 0;
+
+//declare photoresistor
+#define photoresistorPin A5
+int photo = 0;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+
+  //setup lcd
+  lcd.begin(16,2);
+
+  //setup LEDs
+  pinMode(rLED, OUTPUT);
+  pinMode(gLED, OUTPUT);
+  pinMode(bLED, OUTPUT);
+
+  //setup buzzer
+  pinMode(buzzer, OUTPUT);
+
+  //setup servo
+  MyServoMotor.attach(servoMotorPin);
+
+  //setup ultrasonic
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, OUTPUT);
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  //read analog X and Y values
+  //while analog X is not moving, do nothing but print start message and turnoff LED 
+  while(xValue < 1000)
+  {
+    digitalWrite(rLED, LOW);
+    digitalWrite(gLED, LOW);
+    lcd.setCursor(0,0);
+    lcd.print("Move stick");
+    lcd.setCursor(0,1);
+    lcd.print("to begin");
+    xValue = analogRead(VRX_PIN);
+  }
+  xValue = 500; //reset xValue
+
+  //print "Study time!"" and start gLED
+  lcd.clear();
+  lcd.print("Study time!");
+  digitalWrite(gLED, HIGH);
+  digitalWrite(rLED, LOW);
+  lcd.setCursor(0,1);
+
+  //reset minutes and seconds to 0
+  seconds = 0;
+  minutes = 0;
+
+  //display timer during productive time
+  while(minutes < productive_time )
+  {
+    seconds = 0;
+    while(seconds < 60)
+    {
+      lcd.setCursor(0,1);
+      if(minutes < 10)
+      {
+        lcd.print("0"); //print additional 0 when minutes is single digits
+      }
+      lcd.print(minutes);
+      lcd.print(":");
+      if(seconds < 10)
+      {
+        lcd.print("0"); //print additional 0 when seconds is single digits
+      }
+      lcd.print(seconds);
+      delay(1000);
+      seconds++;
+    }
+    minutes++;
+  }
+
+  //productive time ends, add buzzer alarm
+  //buzzer activate
+  //set photoresistor to stop alarm
+  unsigned char i;
+  photo = analogRead(photoresistorPin);
+  while(photo > 200)
+  {
+    for(i=0 ; i<80 ; i++)
+    {
+      digitalWrite(buzzer, HIGH);
+      delay(1);
+      digitalWrite(buzzer, LOW);
+      delay(1);
+    }
+    photo = analogRead(photoresistorPin);
+  }
+
+  //break time starts
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Break time!");
+  digitalWrite(gLED, LOW);
+  digitalWrite(rLED, HIGH);
+
+  lcd.setCursor(0, 1);
+  seconds = 0;
+  minutes = 0;
+
+  while(minutes < break_time)
+  {
+    seconds = 0;
+    while(seconds < 60)
+    {
+      lcd.setCursor(0, 1);
+      if(minutes < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(minutes);
+      lcd.print(":");
+      if(seconds < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(seconds);
+      delay(1000);
+      seconds++;
+    }
+    minutes++;
+  }
+
+  //rest time ends, run motor alarm, stop alarm with ultrasonic
+  while(true)
+  {
+    for(int a=0 ; a<180 ; a+=5)
+    {
+      MyServoMotor.write(a);
+      delay(100);
+    }
+    for(int a=180 ; a>=0 ; a-=5)
+    {
+      MyServoMotor.write(a);
+      delay(100);
+    }
+    //after 1 alarm rotation, check ultrasonic distance
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(20);
+    digitalWrite(trigPin, LOW);
+    pinMode(echoPin, INPUT);
+    long duration = pulseIn(echoPin, HIGH);
+    long cm = ((duration/2) / 29.1);
+    Serial.println(cm);
+    delay(500);
+    if(cm < 10) //stop alarm if distance is small/hand is near sensor
+    {
+      break;
+    }
+  }
+
+}
